@@ -1,0 +1,81 @@
+using System;
+using System.Threading;
+
+class Account
+{
+    private decimal balance;
+    private readonly object balanceLock = new object();
+
+    public decimal Balance
+    {
+        get
+        {
+            lock (balanceLock)
+            {
+                return balance;
+            }
+        }
+    }
+
+    public void Deposit(decimal amount)
+    {
+        lock (balanceLock)
+        {
+            balance += amount;
+            Monitor.Pulse(balanceLock);
+        }
+    }
+
+    public void Withdraw(decimal amount)
+    {
+        lock (balanceLock)
+        {
+            if (amount <= balance)
+            {
+                balance -= amount;
+            }
+            else
+            {
+                Console.WriteLine("Недостаточно средств для снятия.");
+            }
+        }
+    }
+
+    public void WaitForBalance(decimal amount)
+    {
+        lock (balanceLock)
+        {
+            while (balance < amount)
+            {
+                Monitor.Wait(balanceLock);
+            }
+        }
+    }
+}
+
+class Program
+{
+    private static Account account = new Account();
+    private static Random random = new Random();
+
+    static void Main(string[] args)
+    {
+        Thread depositThread = new Thread(DepositProcess);
+        depositThread.Start();
+
+        account.WaitForBalance(100m);
+        account.Withdraw(100m);
+        Console.WriteLine($"Снятие 100 рублей. Баланс: {account.Balance}");
+    }
+
+    static void DepositProcess()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            decimal amount = (decimal)(random.Next(1, 50));
+            account.Deposit(amount);
+            Console.WriteLine($"Пополнили счет на {amount} рублей. Баланс: {account.Balance}");
+            Thread.Sleep(random.Next(100, 500));
+        }
+    }
+}
